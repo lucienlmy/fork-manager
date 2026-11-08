@@ -1,0 +1,15 @@
+name: Cron Probe (temporary)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print trigger info
+        run: |
+          echo "event: $GITHUB_EVENT_NAME"
+          echo "utc now: $(date -u '+%Y-%m-%d %H:%M:%S')"
