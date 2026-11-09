@@ -33,7 +33,7 @@ jobs:
   sync-forks:
     name: Sync All Forks to Upstream
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
 
     steps:
       - name: Checkout fork-manager
