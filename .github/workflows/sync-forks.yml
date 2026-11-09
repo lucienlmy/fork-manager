@@ -2,7 +2,7 @@ name: 🔄 Sync All Forks
 
 on:
   schedule:
-    - cron: "7 * * * *"
+    - cron: "0 */4 * * *"
 
   workflow_dispatch:
     inputs:
