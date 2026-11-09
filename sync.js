@@ -4,6 +4,7 @@ const TOKEN = process.env.PAT_TOKEN;
 const DRY_RUN = process.env.DRY_RUN === "true";
 const FORCE_SYNC = process.env.FORCE_SYNC === "true";
 const SYNC_ALL_BRANCHES = process.env.SYNC_ALL_BRANCHES !== "false";
+const EXCLUDE_PRIVATE = process.env.EXCLUDE_PRIVATE === "true";
 
 // A fine-grained PAT is tied to one resource owner, so forks under an
 // organization need their own token. OWNER_TOKENS maps an owner to the NAME of
@@ -415,6 +416,9 @@ async function main() {
   }
   if (ONLY_LIST.length > 0) console.log(`🎯 Only syncing: ${ONLY_LIST.join(", ")}\n`);
   if (EXCLUDE_LIST.length > 0) console.log(`🚫 Excluded: ${EXCLUDE_LIST.join(", ")}\n`);
+  console.log(EXCLUDE_PRIVATE
+    ? "🔒 Private forks: excluded\n"
+    : "🔒 Private forks: included\n");
   console.log(SYNC_ALL_BRANCHES
     ? "🌿 Extra branches: enabled (same-name branches only)\n"
     : "🌿 Extra branches: disabled (default branch only)\n");
@@ -430,8 +434,15 @@ async function main() {
   console.log(`📋 Found ${allForks.length} fork(s)\n`);
 
   let forks = allForks;
+  if (EXCLUDE_PRIVATE) {
+    const privateCount = forks.filter((fork) => fork.private).length;
+    if (privateCount > 0) {
+      forks = forks.filter((fork) => !fork.private);
+      console.log(`🔒 Skipping ${privateCount} private fork(s)\n`);
+    }
+  }
   if (ONLY_LIST.length > 0) {
-    forks = allForks.filter((fork) =>
+    forks = forks.filter((fork) =>
       ONLY_LIST.some((entry) => matchesRepo(entry, fork.name, fork.owner.login))
     );
     const unmatched = ONLY_LIST.filter(

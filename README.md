@@ -15,6 +15,7 @@ Keep every fork in your GitHub account up to date with its upstream — automati
 - [Scheduled Runs](#scheduled-runs)
 - [Manual Trigger](#manual-trigger)
 - [SYNC_ALL_BRANCHES Variable](#sync_all_branches-variable)
+- [EXCLUDE_PRIVATE Variable](#exclude_private-variable)
 - [Why Diverged Forks Get a PR](#why-diverged-forks-get-a-pr)
 - [Legacy Sync Mode (`force_sync`)](#legacy-sync-mode-force_sync)
 - [Log Symbols](#log-symbols)
@@ -100,7 +101,7 @@ on:
 
 Go to **Actions → 🔄 Sync All Forks → Run workflow**
 
-You'll get four options:
+You'll get five options:
 
 | Option | Description |
 |--------|-------------|
@@ -108,13 +109,14 @@ You'll get four options:
 | `force_sync` | Legacy mode: skip compare and PRs, call `merge-upstream` directly for every fork — GitHub may auto-merge diverged forks. Unchecked (default) uses the PR flow |
 | `exclude_repos` | Comma-separated list of repo names to skip this run |
 | `only_repos` | Comma-separated list of repos to sync (empty = all forks) |
+| `exclude_private` | `true` skips private forks for this run, `false` processes them; empty follows the repository variable `EXCLUDE_PRIVATE` |
 
 Things to know about manual runs:
 
 - The **Use workflow from** dropdown chooses which branch's `sync-forks.yml` **and** `sync.js` are executed. Use the default branch, or a branch that already contains the latest changes — an older branch without the `SYNC_ALL_BRANCHES` env line ignores the variable and always enables extra branches.
 - Repository variables are repository-wide and shared by all branches; you never set them per branch.
-- `SYNC_ALL_BRANCHES` applies to manual runs exactly as it does to scheduled runs, because `vars.*` is evaluated at job start for every trigger type. See [SYNC_ALL_BRANCHES Variable](#sync_all_branches-variable).
-- There is no per-run override for it: the four inputs above are the only manual options. Changing the variable affects every later run, so restore it afterwards if you only wanted a one-off test.
+- `SYNC_ALL_BRANCHES` applies to manual runs exactly as it does to scheduled runs, because `vars.*` is evaluated at job start for every trigger type. See [SYNC_ALL_BRANCHES Variable](#sync_all_branches-variable). `EXCLUDE_PRIVATE` works the same way, but also has the `exclude_private` input for a one-off override.
+- There is no per-run override for `SYNC_ALL_BRANCHES`: changing that variable affects every later run, so restore it afterwards if you only wanted a one-off test.
 - `only_repos` filters by **repository**, not by branch. With one repo selected, all its matching extra branches are still processed when the switch is on; there is no "run only branch `dev`" option.
 - Recommended first test: put one repo in `only_repos` and check `dry_run`. Nothing is written; confirm the `Extra branches: enabled/disabled` line at the top of the log and the `📦 Branches processed` count at the end.
 
@@ -158,6 +160,32 @@ SYNC_ALL_BRANCHES: ${{ vars.SYNC_ALL_BRANCHES || 'true' }}
 - The top of the log prints `Extra branches: enabled (same-name branches only)` or `Extra branches: disabled (default branch only)`.
 - The summary prints `📦 Repos processed` and `📦 Branches processed`; with the switch off, at most one branch is counted per repo.
 - To re-enable: set the value to `true`, or simply delete the variable.
+
+---
+
+## EXCLUDE_PRIVATE Variable
+
+`EXCLUDE_PRIVATE` controls whether private forks are skipped. It is **on by default** — `GET /user/repos` returns every repository the PAT can see, including private ones, so this guard keeps private forks out of the sync run.
+
+| Value | Behaviour |
+|-------|-----------|
+| not set / `true` | Private forks are removed before any upstream lookup or PR work |
+| `false` | Private forks are processed like public ones |
+
+### Where to set it
+
+Repo **Settings → Secrets and variables → Actions → Variables → New repository variable**, name `EXCLUDE_PRIVATE`, value `false` to opt back in. An organization-level variable of the same name also works; a repository-level value takes precedence.
+
+### How it works
+
+```yaml
+EXCLUDE_PRIVATE: ${{ inputs.exclude_private || vars.EXCLUDE_PRIVATE || 'true' }}
+```
+
+- The `exclude_private` manual input (`true` / `false` / empty) overrides the variable for one run; empty falls back to the variable, then to `true`. It is a string input so that `false` is not swallowed by `||`.
+- The script reads it as `process.env.EXCLUDE_PRIVATE === "true"` and filters on `fork.private` **before** `ONLY_REPOS` / `EXCLUDE_REPOS` are applied.
+- The log prints `🔒 Private forks: excluded` (or `included`) and, when any were skipped, `🔒 Skipping N private fork(s)`.
+- To check what the PAT can actually see, compare `📋 Found N fork(s)` with your public fork count; narrowing the fine-grained PAT's Repository access also removes private repos from the list.
 
 ---
 
