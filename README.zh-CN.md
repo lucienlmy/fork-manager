@@ -101,7 +101,7 @@ on:
 
 进入 **Actions → 🔄 Sync All Forks → Run workflow**
 
-有五个选项：
+有六个选项：
 
 | 选项 | 说明 |
 |------|------|
@@ -110,13 +110,14 @@ on:
 | `exclude_repos` | 本次运行要跳过的仓库名，逗号分隔 |
 | `only_repos` | 只同步这些仓库，逗号分隔（留空 = 全部 fork） |
 | `exclude_private` | 填 `true` 本次排除私有 fork，填 `false` 照常处理；留空 = 跟随仓库变量 `EXCLUDE_PRIVATE` |
+| `sync_all_branches` | 填 `true` 本次同步副分支，填 `false` 只同步默认分支；留空 = 跟随仓库变量 `SYNC_ALL_BRANCHES` |
 
 手动运行的注意事项：
 
 - **Use workflow from** 下拉框决定执行**哪个分支上的** `sync-forks.yml` **和** `sync.js`。请使用默认分支，或已包含最新改动的分支 —— 旧分支若没有 `SYNC_ALL_BRANCHES` 这行 env 配置，会忽略该变量并始终开启额外分支。
 - 仓库变量是仓库级的，所有分支共用，不需要按分支分别设置。
-- `SYNC_ALL_BRANCHES` 对手动运行和定时运行同样生效，因为 `vars.*` 在作业启动时求值，与触发方式无关。参见[分支同步开关](#分支同步开关)。`EXCLUDE_PRIVATE` 同理，但额外提供了 `exclude_private` 输入可用于单次覆盖。
-- `SYNC_ALL_BRANCHES` 没有单次覆盖选项：修改该变量会影响之后所有运行，若只是临时测试，测完记得改回来。
+- `SYNC_ALL_BRANCHES` 和 `EXCLUDE_PRIVATE` 对定时、手动运行同样生效，因为 `vars.*` 在作业启动时求值，与触发方式无关；两者也都有对应的 `workflow_dispatch` 输入（`sync_all_branches` / `exclude_private`）可用于单次覆盖。参见[分支同步开关](#分支同步开关)和[私有仓库排除开关](#私有仓库排除开关)。
+- 单次输入只影响本次运行；修改变量则影响之后所有运行，若只是临时测试，测完记得改回来。
 - `only_repos` 按**仓库**过滤，不按分支过滤。即使只选了一个仓库，开关开启时它的所有匹配的额外分支仍会被处理；没有「只跑 `dev` 分支」的选项。
 - 建议的首次测试：`only_repos` 填一个仓库并勾选 `dry_run`。不会产生任何写入；通过日志开头的 `Extra branches: enabled/disabled` 行和结尾的 `📦 Branches processed` 数量确认开关是否生效。
 
@@ -141,10 +142,10 @@ on:
 ### 变量如何生效
 
 ```yaml
-SYNC_ALL_BRANCHES: ${{ vars.SYNC_ALL_BRANCHES || 'true' }}
+SYNC_ALL_BRANCHES: ${{ inputs.sync_all_branches || vars.SYNC_ALL_BRANCHES || 'true' }}
 ```
 
-- 在作业启动时求值，对**定时和手动**运行都生效；它不是 `workflow_dispatch` 输入。
+- 在作业启动时求值，对**定时和手动**运行都生效。`sync_all_branches` 输入默认留空，因此跟随 `vars.SYNC_ALL_BRANCHES`；变量也未设置时，`|| 'true'` 使副分支同步**默认开启**。填 `true` / `false` 可对单次运行覆盖变量。与 `exclude_private` 一样使用字符串类型，避免 `false` 被 `||` 当成假值吃掉。定时运行没有 inputs，始终按变量取值。
 - 变量不存在时，`|| 'true'` 使额外分支同步保持开启。
 - 只有精确的小写字符串 `false` 能关闭它。`FALSE`、`False` 或空值都视为开启。
 - 脚本中的判断为 `process.env.SYNC_ALL_BRANCHES !== "false"`。
@@ -182,7 +183,7 @@ SYNC_ALL_BRANCHES: ${{ vars.SYNC_ALL_BRANCHES || 'true' }}
 EXCLUDE_PRIVATE: ${{ inputs.exclude_private || vars.EXCLUDE_PRIVATE || 'true' }}
 ```
 
-- 手动运行的 `exclude_private` 输入（`true` / `false` / 留空）可对单次运行覆盖变量；留空则回退到变量，再回退到 `true`。它用字符串类型，避免 `false` 被 `||` 当成假值吃掉。
+- `exclude_private` 输入默认留空，因此跟随 `vars.EXCLUDE_PRIVATE`；变量也未设置时，`|| 'true'` 使私有 fork **默认被排除**。填 `true` / `false` 可对单次运行覆盖变量。它用字符串类型，避免 `false` 被 `||` 当成假值吃掉。定时运行没有 inputs，始终按变量取值。
 - 脚本中的判断为 `process.env.EXCLUDE_PRIVATE === "true"`，并在 `ONLY_REPOS` / `EXCLUDE_REPOS` 生效**之前**按 `fork.private` 过滤。
 - 日志会打印 `🔒 Private forks: excluded`（或 `included`）；确实跳过了仓库时还会打印 `🔒 Skipping N private fork(s)`。
 - 想确认 PAT 到底能看到多少仓库，可以把 `📋 Found N fork(s)` 的数量与公开 fork 数量对比；收窄细粒度 PAT 的 Repository access 也能从源头移除私有仓库。

@@ -22,11 +22,15 @@ on:
         description: "仅限仓库：只处理这些仓库，逗号分隔（仓库名或 owner/仓库名；留空 = 全部 fork）"
         type: string
         default: ""
-      exclude_private:
-        description: "排除私有 fork：填 true 排除、false 处理；留空 = 跟随仓库变量 EXCLUDE_PRIVATE"
+      sync_all_branches:
+        description: "同步副分支：留空 = 跟随变量 SYNC_ALL_BRANCHES（未设置则默认 true 开启）；填 true 开启、false 只同步默认分支"
         type: string
         default: ""
-
+      exclude_private:
+        description: "排除私有 fork：留空 = 跟随变量 EXCLUDE_PRIVATE（未设置则默认 true 排除）；填 true 排除、false 照常处理"
+        type: string
+        default: ""
+      
   repository_dispatch:
     types: [sync-forks]
 
@@ -59,7 +63,7 @@ jobs:
           EXCLUDE_REPOS: ${{ inputs.exclude_repos }}
           ONLY_REPOS: ${{ inputs.only_repos }}
           PERMANENT_EXCLUDES: ""
-          SYNC_ALL_BRANCHES: ${{ vars.SYNC_ALL_BRANCHES || 'true' }}
+          SYNC_ALL_BRANCHES: ${{ inputs.sync_all_branches || vars.SYNC_ALL_BRANCHES || 'true' }}
           EXCLUDE_PRIVATE: ${{ inputs.exclude_private || vars.EXCLUDE_PRIVATE || 'true' }}
         run: |
           if [ -n "$PERMANENT_EXCLUDES" ] && [ -n "$EXCLUDE_REPOS" ]; then
